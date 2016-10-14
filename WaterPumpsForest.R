@@ -2,9 +2,19 @@
 #Driven data water pumps in Tanzania challenge
 #Using Random forest for classification
 #github: https://github.com/aratikrishna/Waterpump
+
+#what all does this code involve?
+#-feature engineering
+#-missing value imputation using averages, logical assumptions, decision trees
+#-cutting the tails of continuous variables
+#-dropping levels of categorical variables
+#-random forest
+#-ggplot to visualize feature effects on dependent variables
+
 ################################################################
 #INITIAL PREP
 setwd("~/analytics/waterpump")
+
 #clear the environment
 rm(list=ls())
 
@@ -12,9 +22,13 @@ rm(list=ls())
 install.packages("dplyr")
 install.packages("randomForest")
 install.packages("rpart")
+install.packages("ggplot2")
+
 library(dplyr)
 library(randomForest)
 library(rpart)
+library(ggplot2)
+
 
 #set seed
 set.seed(42)
@@ -57,6 +71,40 @@ table(train$status_group)
 # As proportions
 prop.table(table(train$status_group))
 ################################################################################
+############################################################################
+#EXPLORE AND VISUALIZE
+
+# Create bar plot for quantity
+qplot(quantity, data=train, geom="bar", fill=status_group) + 
+  theme(legend.position = "top")
+qplot(status_group, data=train, geom="bar", fill=quantity) + 
+  theme(legend.position = "top")
+
+
+# Create bar plot for quality_group
+qplot(quality_group, data=train, geom="bar", fill=status_group) + 
+  theme(legend.position = "top")
+
+# Create bar plot for waterpoint_type
+qplot(waterpoint_type, data=train, geom="bar", fill=status_group) + 
+  theme(legend.position = "top") + 
+  theme(axis.text.x=element_text(angle = -20, hjust = 0))
+#################################################################################
+#CONTINUOUS VARIABLE VISUALIZATION
+
+# Create a histogram for `construction_year` grouped by `status_group`
+ggplot(train, aes(x = construction_year)) + 
+  geom_histogram(bins = 20) + 
+  facet_grid( ~ status_group)
+
+# Now subsetting when construction_year is larger than 0
+ggplot(subset(train, construction_year > 0), aes(x =construction_year)) +
+  geom_histogram(bins = 20) + 
+  facet_grid( ~ status_group)
+#############################################################################
+
+
+
 #ADDING FEATURES
 
 test$status_group<-""
@@ -117,16 +165,25 @@ nrow(all[all$finallongitude==0,])
 hist(all$longitude)
 hist(all$finallongitude)
 
-hist(all$amount_tsh)
-hist(all$amount_tsh[all$amount_tsh>0 
-                    & all$amount_tsh<50000
-                    ])
-
 summary(all$amount_tsh)
 summary(all$amount_tsh[all$amount_tsh>0])
 
+hist(all$amount_tsh)
+hist(all$amount_tsh[all$amount_tsh>10000
+#                    & all$amount_tsh<100000
+                    ])
+table(all$status_group[all$amount_tsh>10000],all$amount_tsh[all$amount_tsh>10000])
+#amount_tsh>10000 does not seem to be indicative of status group. 
+#collapse all to 10000
+all$amount_tsh[all$amount_tsh>=10000]<- 10000
+hist(all$amount_tsh)
+hist(all$amount_tsh[all$amount_tsh>5000
+                    ])
+
 nrow(all[all$amount_tsh==0,])
 #52049 rows of all have amount_tsh 0; so set a flag for these rows
+nrow(train[train$amount_tsh==0,])
+nrow(test[test$amount_tsh==0,])
 
 all$tsh0flag <- 0
 all$tsh0flag[all$amount_tsh==0]<-1
@@ -161,6 +218,12 @@ all$pop01flag <- 0
 all$pop01flag[all$population ==0]<-1
 table(all$pop01flag)
 all$population[all$population==0]<- round(mean(all$population[all$population!=0]),digits = 0)
+hist(all$population)
+table(all$population)
+table(all$status_group[all$population>5000],all$population[all$population>5000])
+#population>10000 does not seem to be indicative of status group. 
+#collapse all to 10000
+all$population[all$population>5000]<-5000
 
 all$age<- max(all$construction_year)-all$construction_year
 table(all$age)
@@ -171,8 +234,7 @@ table(all$age)
 table(all$year0flag)
 all$age[all$age==max(all$construction_year)]<- round(mean(all$age[all$age!=max(all$construction_year)]),digits = 0)
 table(all$age)
-
-
+hist(all$age)
 
 #cannot have missing values for random forest
 table(all$permit)
@@ -410,8 +472,45 @@ varImpPlot(model_forest)
 plot(model_forest)
 print(model_forest)
 
+table(all$status_group,all$quantity_group)
+
+# Create bar plot for categorical variables
+qplot(quantity_group, data=trainm, geom="bar", fill=status_group) + 
+  theme(legend.position = "top")
+
+qplot(status_group, data=trainm, geom="bar", fill=quantity_group) + 
+  theme(legend.position = "top")
+
+qplot(waterpoint_type_group, data=trainm, geom="bar", fill=status_group) + 
+  theme(legend.position = "top")
+
+qplot(extraction_type_class, data=trainm, geom="bar", fill=status_group) + 
+  theme(legend.position = "top") 
++ theme(axis.text.x=element_text(angle = -20, hjust = 0))
+
+# Create a histograms for continuous variables
+ggplot(trainm, aes(x = finallongitude)) + 
+  geom_histogram(bins = 20) +   facet_grid( ~ status_group)
+
+ggplot(trainm, aes(x = latitude)) + 
+  geom_histogram(bins = 20) +   facet_grid( ~ status_group)
+
+ggplot(trainm, aes(x = latitude)) + 
+  geom_histogram(bins = 20) +   facet_grid( ~ status_group)
+
+ggplot(trainm, aes(x = gps_height)) + 
+  geom_histogram(bins = 20) +   facet_grid( ~ status_group)
+ggplot(trainm, aes(x = age)) + 
+  geom_histogram(bins = 20) +   facet_grid( ~ status_group)
+ggplot(trainm, aes(x = population)) + 
+  geom_histogram(bins = 20) +   facet_grid( ~ status_group)
+ggplot(trainm, aes(x = amount_tsh)) + 
+  geom_histogram(bins = 10) +   facet_grid( ~ status_group)
+
+
 pred_forest_train<- predict(model_forest,trainm)
 table(trainm$status_group,pred_forest_train)
+
 
 pred_forest_test<- predict(model_forest,testm)
 submissionForest<-data.frame(testm$id)
